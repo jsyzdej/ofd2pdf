@@ -43,9 +43,6 @@ python -m pip install -e .
 pytest -q
 ```
 
-仓库默认忽略本地 `.ofd` 文件和生成的 PDF，避免误提交真实业务文档。
-
-当前仓库没有放置开源许可证。没有许可证时，默认表示作者保留全部权利。
 
 ## English
 
@@ -89,7 +86,3 @@ python -m pip install -e .
 ```bash
 pytest -q
 ```
-
-Local `.ofd` files and generated PDFs are ignored by default to avoid committing private documents.
-
-This repository currently has no open-source license. Without a license, all rights are reserved by default.
