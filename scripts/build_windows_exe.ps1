@@ -8,6 +8,7 @@ pyinstaller `
   --onefile `
   --windowed `
   --name ofd2pdf-gui `
+  --collect-all tkinterdnd2 `
   --collect-all reportlab `
   scripts/ofd2pdf_gui.py
 

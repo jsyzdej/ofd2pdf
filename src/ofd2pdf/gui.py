@@ -13,6 +13,14 @@ from tkinter import filedialog, messagebox, ttk
 from .converter import convert_file
 from .exceptions import OfdConversionError
 
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+except Exception:  # pragma: no cover - depends on optional native tkdnd loading
+    DND_FILES = None
+    TkBase = tk.Tk
+else:
+    TkBase = TkinterDnD.Tk
+
 
 @dataclass(frozen=True)
 class QueueEvent:
@@ -20,7 +28,7 @@ class QueueEvent:
     payload: object = None
 
 
-class Ofd2PdfApp(tk.Tk):
+class Ofd2PdfApp(TkBase):
     def __init__(self) -> None:
         super().__init__()
         self.title("OFD to PDF")
@@ -36,6 +44,7 @@ class Ofd2PdfApp(tk.Tk):
         self.recursive = tk.BooleanVar(value=True)
 
         self._build_ui()
+        self._enable_drag_and_drop()
         self.after(100, self._process_events)
 
     def _build_ui(self) -> None:
@@ -84,6 +93,12 @@ class Ofd2PdfApp(tk.Tk):
         self.table.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         yscroll.pack(side=tk.RIGHT, fill=tk.Y)
 
+        hint_text = "Drag OFD files or folders here, or use the buttons above."
+        if DND_FILES is None:
+            hint_text = "Drag and drop unavailable. Use the buttons above to add OFD files."
+        self.drop_hint = ttk.Label(root, text=hint_text)
+        self.drop_hint.pack(fill=tk.X, pady=(0, 8))
+
         bottom = ttk.Frame(root)
         bottom.pack(fill=tk.X)
 
@@ -96,6 +111,23 @@ class Ofd2PdfApp(tk.Tk):
 
         self.log = tk.Text(root, height=8, wrap=tk.WORD, state=tk.DISABLED)
         self.log.pack(fill=tk.BOTH, pady=(10, 0))
+
+    def _enable_drag_and_drop(self) -> None:
+        if DND_FILES is None:
+            return
+        try:
+            for widget in (self, self.table):
+                widget.drop_target_register(DND_FILES)
+                widget.dnd_bind("<<Drop>>", self._handle_drop)
+        except Exception as exc:
+            self.drop_hint.configure(text="Drag and drop unavailable. Use the buttons above to add OFD files.")
+            self._write_log(f"Drag and drop unavailable: {exc}")
+
+    def _handle_drop(self, event) -> str:
+        dropped = [Path(item) for item in self.tk.splitlist(event.data)]
+        added = self._add_dropped_paths(dropped)
+        self._write_log(f"Dragged in {added} OFD file(s).")
+        return "break"
 
     def add_files(self) -> None:
         paths = filedialog.askopenfilenames(
@@ -114,7 +146,18 @@ class Ofd2PdfApp(tk.Tk):
         self._add_paths(found)
         self._write_log(f"Added {len(found)} OFD file(s) from {root}")
 
-    def _add_paths(self, paths) -> None:
+    def _add_dropped_paths(self, paths: list[Path]) -> int:
+        ofd_files: list[Path] = []
+        for path in paths:
+            expanded = path.expanduser()
+            if expanded.is_dir():
+                pattern = "**/*.ofd" if self.recursive.get() else "*.ofd"
+                ofd_files.extend(sorted(item for item in expanded.glob(pattern) if item.is_file()))
+            else:
+                ofd_files.append(expanded)
+        return self._add_paths(ofd_files)
+
+    def _add_paths(self, paths) -> int:
         existing = set(self.files)
         added = 0
         for path in paths:
@@ -128,6 +171,7 @@ class Ofd2PdfApp(tk.Tk):
             added += 1
         if added:
             self._write_log(f"Added {added} OFD file(s).")
+        return added
 
     def remove_selected(self) -> None:
         for item in self.table.selection():
