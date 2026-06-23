@@ -16,9 +16,13 @@ dependencies = [
 dev = [
   "pytest>=9.0",
 ]
+exe = [
+  "pyinstaller>=6.0",
+]
 
 [project.scripts]
 ofd2pdf = "ofd2pdf.cli:main"
+ofd2pdf-gui = "ofd2pdf.gui:main"
 
 [build-system]
 requires = ["hatchling"]

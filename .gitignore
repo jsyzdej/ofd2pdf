@@ -22,6 +22,7 @@ env/
 build/
 dist/
 *.egg-info/
+*.spec
 
 # Local conversion inputs/outputs.
 # Real OFD files often contain private document data, so keep fixtures local by

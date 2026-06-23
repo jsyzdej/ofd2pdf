@@ -46,6 +46,38 @@ You can also run the module directly:
 python -m ofd2pdf input.ofd -o output.pdf
 ```
 
+## GUI
+
+Run the lightweight Tkinter GUI:
+
+```bash
+ofd2pdf-gui
+```
+
+The GUI supports adding multiple `.ofd` files, importing folders, recursive
+folder scanning, choosing an output folder, overwrite control, progress status,
+and a conversion log.
+
+## Build A Windows EXE
+
+On Windows, install Python 3.10 or newer, then run:
+
+```powershell
+uv venv
+.venv\Scripts\activate
+uv pip install -e ".[exe]"
+.\scripts\build_windows_exe.ps1
+```
+
+The GUI executable will be written to:
+
+```text
+dist\ofd2pdf-gui.exe
+```
+
+If PowerShell blocks the script, run the commands inside
+`scripts\build_windows_exe.ps1` manually in the activated virtual environment.
+
 ## Development
 
 ```bash
