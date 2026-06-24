@@ -1,0 +1,36 @@
+# macOS / editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.spec
+
+# Local conversion inputs/outputs.
+# Real OFD files often contain private document data, so keep fixtures local by
+# default unless they are deliberately sanitized before publishing.
+*.ofd
+output/
+tmp/
+
+# Local environment files
+.env
+.env.*
