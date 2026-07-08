@@ -233,6 +233,7 @@ class PdfRenderer:
     def _render_text(self, element, origin: tuple[float, float]) -> None:
         pdf = self._pdf
         bx, by, _, _ = self._boundary(element)
+        matrix = self._matrix(element.attrib.get("CTM")) if element.attrib.get("CTM") else None
         font_name = self._font_for(element.attrib.get("Font"))
         font_size = mm(float(element.attrib.get("Size", "3.5")))
         fill = parse_bool(element.attrib.get("Fill"), True)
@@ -258,10 +259,26 @@ class PdfRenderer:
             text = code.text or ""
             if not text:
                 continue
-            x0 = origin[0] + bx + float(code.attrib.get("X", "0"))
-            y0 = origin[1] + by + float(code.attrib.get("Y", "0"))
+            local_x0 = float(code.attrib.get("X", "0"))
+            local_y0 = float(code.attrib.get("Y", "0"))
+            x0 = origin[0] + bx + local_x0
+            y0 = origin[1] + by + local_y0
             deltas_x = parse_floats(code.attrib.get("DeltaX")) if code.attrib.get("DeltaX") else []
             deltas_y = parse_floats(code.attrib.get("DeltaY")) if code.attrib.get("DeltaY") else []
+            if matrix is not None:
+                self._draw_text_code_with_matrix(
+                    text,
+                    local_x0,
+                    local_y0,
+                    deltas_x,
+                    deltas_y,
+                    origin=(origin[0] + bx, origin[1] + by),
+                    matrix=matrix,
+                    font_name=font_name,
+                    font_size=font_size,
+                    mode=mode,
+                )
+                continue
             if not deltas_x and not deltas_y:
                 self._draw_text_piece(text, x0, y0, font_name, font_size, mode)
                 continue
@@ -279,17 +296,94 @@ class PdfRenderer:
 
         pdf.restoreState()
 
+    def _draw_text_code_with_matrix(
+        self,
+        text: str,
+        x_mm: float,
+        y_mm: float,
+        deltas_x: list[float],
+        deltas_y: list[float],
+        *,
+        origin: tuple[float, float],
+        matrix: Matrix,
+        font_name: str,
+        font_size: float,
+        mode: int,
+    ) -> None:
+        cursor_x = x_mm
+        cursor_y = y_mm
+        for index, char in enumerate(text):
+            self._draw_text_piece_with_matrix(char, cursor_x, cursor_y, origin, matrix, font_name, font_size, mode)
+            if index < len(deltas_x):
+                cursor_x += deltas_x[index]
+            else:
+                cursor_x += pt_to_mm(pdfmetrics.stringWidth(char, font_name, font_size))
+            if index < len(deltas_y):
+                cursor_y += deltas_y[index]
+
+    def _draw_text_piece_with_matrix(
+        self,
+        text: str,
+        x_mm: float,
+        y_mm: float,
+        origin: tuple[float, float],
+        matrix: Matrix,
+        font_name: str,
+        font_size: float,
+        mode: int,
+    ) -> None:
+        if abs(matrix.b) > 1e-9 or abs(matrix.c) > 1e-9:
+            self._draw_text_piece_with_general_matrix(text, x_mm, y_mm, origin, matrix, font_name, font_size, mode)
+            return
+
+        tx, ty = matrix.apply(x_mm, y_mm)
+        x, y = self._point(origin[0] + tx, origin[1] + ty)
+        self._pdf.saveState()
+        self._pdf.translate(x, y)
+        self._pdf.scale(matrix.a, matrix.d)
+        self._draw_text_piece_at_origin(text, font_name, font_size, mode)
+        self._pdf.restoreState()
+
+    def _draw_text_piece_with_general_matrix(
+        self,
+        text: str,
+        x_mm: float,
+        y_mm: float,
+        origin: tuple[float, float],
+        matrix: Matrix,
+        font_name: str,
+        font_size: float,
+        mode: int,
+    ) -> None:
+        tx, ty = matrix.apply(x_mm, y_mm)
+        x, y = self._point(origin[0] + tx, origin[1] + ty)
+        self._pdf.saveState()
+        self._pdf.translate(x, y)
+        self._pdf.rotate(matrix.pdf_angle_degrees)
+        self._pdf.scale(matrix.x_scale, math.hypot(matrix.c, matrix.d))
+        self._draw_text_piece_at_origin(text, font_name, font_size, mode)
+        self._pdf.restoreState()
+
     def _draw_text_piece(self, text: str, x_mm: float, y_mm: float, font_name: str, font_size: float, mode: int) -> None:
         x, y = self._point(x_mm, y_mm)
         if mode == 0:
             self._pdf.drawString(x, y, text)
             return
+        self._draw_text_piece_at(text, x, y, font_name, font_size, mode)
+
+    def _draw_text_piece_at(self, text: str, x: float, y: float, font_name: str, font_size: float, mode: int) -> None:
         item = self._pdf.beginText()
         item.setTextOrigin(x, y)
         item.setFont(font_name, font_size)
         item.setTextRenderMode(mode)
         item.textOut(text)
         self._pdf.drawText(item)
+
+    def _draw_text_piece_at_origin(self, text: str, font_name: str, font_size: float, mode: int) -> None:
+        if mode == 0:
+            self._pdf.drawString(0, 0, text)
+            return
+        self._draw_text_piece_at(text, 0, 0, font_name, font_size, mode)
 
     def _render_text_transformed(
         self,
